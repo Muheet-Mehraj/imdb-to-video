@@ -32,7 +32,7 @@ IMDb URL
       └───────────┬───────────┘
                   ▼
         ┌──────────────────┐
-        │  4. FFmpeg mux   │  H.264 + AAC → MP4  (~100 s)
+        │  4. FFmpeg mux   │  H.264 + AAC → MP4  (~115 s)
         └──────────────────┘
 ```
 
@@ -40,14 +40,29 @@ IMDb URL
 
 ## Quick start
 
+### Linux / macOS
+
 ```bash
 # 1. System dependencies
-sudo apt-get install -y ffmpeg espeak-ng
+sudo apt-get install -y ffmpeg espeak-ng   # Linux
+brew install ffmpeg espeak-ng              # macOS
 
 # 2. Install Python package
 pip install -e ".[dev]"
 
 # 3. Run
+python -m imdb_pipeline https://www.imdb.com/title/tt0111161/
+# → outputs/movie_spotlight.mp4
+```
+
+### Windows
+
+1. **FFmpeg** — download `ffmpeg-release-essentials.zip` from [gyan.dev/ffmpeg/builds](https://www.gyan.dev/ffmpeg/builds/), extract to `C:\ffmpeg`, add `C:\ffmpeg\bin` to your system PATH
+2. **eSpeak NG** — download the `.msi` installer from [github.com/espeak-ng/espeak-ng/releases](https://github.com/espeak-ng/espeak-ng/releases), run it and ensure "Add to PATH" is checked
+3. Restart your terminal, then:
+
+```bash
+pip install -e ".[dev]"
 python -m imdb_pipeline https://www.imdb.com/title/tt0111161/
 # → outputs/movie_spotlight.mp4
 ```
@@ -125,6 +140,14 @@ SECTION_DURATIONS = {"title": 4, "stats": 5, ...}
 pytest -v
 pytest --cov=imdb_pipeline --cov-report=term-missing
 ```
+
+---
+
+## Known limitations
+
+- **IMDb scraping** — IMDb occasionally blocks automated requests (HTTP 403). The pipeline automatically falls back to bundled demo data when this happens, so a video is always produced. For reliable live scraping, consider routing through a proxy or adding a real API key via [OMDb](https://www.omdbapi.com/).
+- **TTS quality** — narration uses espeak-ng (offline, no API key required). The voice is functional but robotic. Swap `audio/tts.py` for an ElevenLabs or Google TTS backend for production-quality narration.
+- **Render time** — generating ~2760 frames on CPU takes 8–10 minutes. GPU acceleration is not currently implemented.
 
 ---
 
