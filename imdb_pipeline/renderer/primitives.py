@@ -24,10 +24,18 @@ VIGNETTE_MASK = (1 - np.clip(_dist * VIGNETTE_STRENGTH, 0, 1))[:, :, np.newaxis]
 
 # ── Fonts ──────────────────────────────────────────────────────────────────────
 
-def font(style: str, size: int) -> ImageFont.FreeTypeFont:
-    """Return a cached Poppins font variant at *size* pixels."""
+def font(style: str, size: int) -> ImageFont.ImageFont:
+    """Return a Poppins font variant at *size* pixels.
+
+    Falls back to Pillow built-in bitmap font when the TTF is missing
+    (e.g. running tests without Poppins installed on Windows).
+    Bundle .ttf files in imdb_pipeline/assets/fonts/ for cross-OS rendering.
+    """
     path = FONTS.get(style, FONTS["regular"])
-    return ImageFont.truetype(str(path), size)
+    try:
+        return ImageFont.truetype(str(path), size)
+    except OSError:
+        return ImageFont.load_default()
 
 
 # ── Backgrounds ────────────────────────────────────────────────────────────────

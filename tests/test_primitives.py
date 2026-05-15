@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from imdb_pipeline.renderer.primitives import (
     ease_out,
@@ -13,6 +13,34 @@ from imdb_pipeline.renderer.primitives import (
 )
 from imdb_pipeline.config import VIDEO_WIDTH as W, VIDEO_HEIGHT as H
 
+
+# ---------------------------------------------------------------------------
+# Fixture: skip font-dependent tests when no TTF is available.
+#
+# The Poppins .ttf files live at /usr/share/fonts/truetype/google-fonts/ on
+# Linux CI but are not present on a stock Windows machine.  Bundle them in
+# imdb_pipeline/assets/fonts/ to make these tests pass everywhere.
+# ---------------------------------------------------------------------------
+
+def _has_truetype_font() -> bool:
+    """Return True if font() resolves to a real FreeType font."""
+    return isinstance(font("regular", 12), ImageFont.FreeTypeFont)
+
+
+requires_ttf = pytest.mark.skipif(
+    not _has_truetype_font(),
+    reason=(
+        "Poppins TTF not found. "
+        "Copy the four Poppins .ttf files into imdb_pipeline/assets/fonts/ "
+        "or install them via: "
+        "sudo apt-get install fonts-google-poppins  (Linux)."
+    ),
+)
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
 class TestEaseOut:
     def test_zero_returns_zero(self):
@@ -64,17 +92,20 @@ class TestVignetteMask:
 
 
 class TestWrapText:
+    @requires_ttf
     def test_short_text_single_line(self):
         f = font("regular", 20)
         lines = wrap_text("Hi", f, 500)
         assert lines == ["Hi"]
 
+    @requires_ttf
     def test_long_text_wraps(self):
         f = font("regular", 20)
         text = "This is a very long sentence that should definitely be wrapped into multiple lines."
         lines = wrap_text(text, f, 200)
         assert len(lines) > 1
 
+    @requires_ttf
     def test_no_line_exceeds_max_width(self):
         f = font("regular", 20)
         text = "Word " * 30
