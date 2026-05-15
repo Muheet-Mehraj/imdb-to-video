@@ -2,7 +2,7 @@
 
 AI-powered pipeline that converts any IMDb movie page into a ready-to-upload ~2-minute short video.
 
-![Workflow](assets/workflow.png)
+![Workflow](docs/workflow.png)
 
 ---
 
@@ -98,6 +98,7 @@ imdb_pipeline/
 
 __main__.py             CLI  (python -m imdb_pipeline …)
 tests/                  32 pytest tests
+docs/                   Architecture assets
 pyproject.toml          Build config + dependencies
 ```
 
