@@ -37,7 +37,8 @@ def assemble(frames_dir: Path, audio_path: Path, output_path: Path) -> None:
         "-pix_fmt", "yuv420p",
         "-c:a", "aac",
         "-b:a", FFMPEG_AUDIO_BITRATE,
-        "-shortest",
+        # No -shortest: let the video run its full frame length.
+        # Audio ends before the last sections (quote/outro are silent by design).
         str(output_path),
     ]
 
