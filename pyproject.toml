@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name            = "imdb-pipeline"
+version         = "1.0.0"
+description     = "Convert an IMDb movie listing into a ~2-minute narrated video"
+readme          = "README.md"
+requires-python = ">=3.10"
+license         = { text = "MIT" }
+
+dependencies = [
+    "requests>=2.31",
+    "beautifulsoup4>=4.12",
+    "pillow>=10.0",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "pytest-cov"]
+
+[project.scripts]
+imdb-pipeline = "imdb_pipeline.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["imdb_pipeline*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
