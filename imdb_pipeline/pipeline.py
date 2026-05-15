@@ -24,6 +24,7 @@ def run(
     imdb_url: str,
     output_path: Path | None = None,
     work_dir: Path | None = None,
+    omdb_api_key: str | None = None,
 ) -> Path:
     """Convert an IMDb movie listing into a ~2-minute MP4 video.
 
@@ -33,10 +34,14 @@ def run(
         Full IMDb title URL, e.g. ``https://www.imdb.com/title/tt0111161/``
     output_path:
         Destination for the finished MP4.  Defaults to
-        ``/mnt/user-data/outputs/movie_spotlight.mp4``.
+        ``outputs/movie_spotlight.mp4``.
     work_dir:
         Scratch directory for intermediate frames and audio.
-        Defaults to ``/home/claude/imdb_pipeline_run``.
+        Defaults to ``~/.imdb_pipeline_cache``.
+    omdb_api_key:
+        OMDb API key. Falls back to the ``OMDB_API_KEY`` environment
+        variable if not provided. Get a free key at
+        https://www.omdbapi.com/apikey.aspx
 
     Returns
     -------
@@ -53,8 +58,8 @@ def run(
     log.info("URL:    %s", imdb_url)
     log.info("Output: %s", output_path)
 
-    # Stage 1 — Scrape
-    movie: MovieData = scrape(imdb_url)
+    # Stage 1 — Scrape (OMDb → live IMDb → demo fallback)
+    movie: MovieData = scrape(imdb_url, omdb_api_key=omdb_api_key)
 
     # Stage 2 — Audio (need duration before sizing the plot section)
     audio_path, audio_duration = generate_audio(movie, audio_dir)

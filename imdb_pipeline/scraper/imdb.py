@@ -1,14 +1,15 @@
 """
-Live IMDb scraper.
+IMDb scraper with OMDb API support.
 
-Targets the JSON-LD (schema.org/Movie) block embedded in every IMDb
-page — more robust than CSS-selector scraping against layout changes.
-Falls back to demo data when the request is blocked (403) or the
-network is unavailable.
+Priority order:
+  1. OMDb API  (set OMDB_API_KEY env var or pass via --omdb-key CLI flag)
+  2. Live IMDb scrape  (JSON-LD block)
+  3. Bundled demo data  (always works, no network needed)
 """
 
 import json
 import logging
+import os
 import re
 
 import requests
@@ -28,36 +29,131 @@ _HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
+OMDB_API_URL = "http://www.omdbapi.com/"
 
-def scrape(url: str) -> MovieData:
-    """Fetch and parse an IMDb movie page.
+
+# ── Public entry point ─────────────────────────────────────────────────────────
+
+def scrape(url: str, omdb_api_key: str | None = None) -> MovieData:
+    """Fetch and parse movie data for an IMDb title URL.
 
     Parameters
     ----------
     url:
         Full IMDb title URL, e.g. ``https://www.imdb.com/title/tt0111161/``
+    omdb_api_key:
+        OMDb API key. If not provided, falls back to the ``OMDB_API_KEY``
+        environment variable.
 
     Returns
     -------
     MovieData
-        Populated from live data, or from the demo catalogue on failure.
+        Populated from OMDb → live IMDb → demo data (first source that works).
     """
     log.info("Scraping %s", url)
     imdb_id = _extract_id(url)
 
+    # 1. Try OMDb API
+    api_key = omdb_api_key or os.environ.get("OMDB_API_KEY", "")
+    if api_key:
+        movie = _scrape_omdb(imdb_id, url, api_key)
+        if movie:
+            log.info("OMDb → %s", movie.display_name())
+            return movie
+    else:
+        log.warning("No OMDB_API_KEY found — skipping OMDb, trying live IMDb scrape")
+
+    # 2. Try live IMDb scrape
+    movie = _scrape_imdb(url, imdb_id)
+    if movie:
+        log.info("IMDb scrape → %s", movie.display_name())
+        return movie
+
+    # 3. Demo fallback
+    return _demo_fallback(imdb_id, url)
+
+
+# ── OMDb ───────────────────────────────────────────────────────────────────────
+
+def _scrape_omdb(imdb_id: str, url: str, api_key: str) -> MovieData | None:
+    """Fetch data from the OMDb API. Returns None on any failure."""
+    if not imdb_id:
+        log.warning("Could not extract IMDb ID from URL — skipping OMDb")
+        return None
+
+    try:
+        resp = requests.get(
+            OMDB_API_URL,
+            params={"i": imdb_id, "apikey": api_key, "plot": "full"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        log.warning("OMDb request failed (%s)", exc)
+        return None
+
+    if data.get("Response") != "True":
+        log.warning("OMDb returned error: %s", data.get("Error", "unknown"))
+        return None
+
+    return _apply_omdb(data, url)
+
+
+def _apply_omdb(data: dict, url: str) -> MovieData:
+    """Map an OMDb response dict to a MovieData instance."""
+    movie = MovieData(imdb_url=url)
+
+    movie.title     = data.get("Title", "")
+    movie.year      = data.get("Year", "")
+    movie.pg_rating = data.get("Rated", "")
+    movie.duration  = _runtime_to_hm(data.get("Runtime", ""))
+    movie.director  = data.get("Director", "")
+    movie.plot      = data.get("Plot", "")
+    movie.tagline   = ""   # OMDb doesn't provide taglines
+    movie.awards    = data.get("Awards", "")
+
+    genre_str = data.get("Genre", "")
+    movie.genre = [g.strip() for g in genre_str.split(",") if g.strip()]
+
+    actors_str = data.get("Actors", "")
+    movie.cast = [a.strip() for a in actors_str.split(",") if a.strip()][:6]
+
+    movie.rating = data.get("imdbRating", "N/A")
+    votes_raw    = data.get("imdbVotes", "")
+    movie.votes  = votes_raw  # already formatted as "1,234,567"
+
+    return movie
+
+
+def _runtime_to_hm(runtime: str) -> str:
+    """Convert ``'142 min'`` → ``'2h 22m'``."""
+    m = re.match(r"(\d+)", runtime)
+    if not m:
+        return runtime
+    total = int(m.group(1))
+    h, mn = divmod(total, 60)
+    parts = []
+    if h:
+        parts.append(f"{h}h")
+    if mn:
+        parts.append(f"{mn}m")
+    return " ".join(parts) or runtime
+
+
+# ── Live IMDb scrape ───────────────────────────────────────────────────────────
+
+def _scrape_imdb(url: str, imdb_id: str) -> MovieData | None:
+    """Try fetching directly from IMDb. Returns None on failure."""
     try:
         resp = requests.get(url, headers=_HEADERS, timeout=15)
         resp.raise_for_status()
         movie = _parse_page(resp.text, url)
-        log.info("Scraped: %s", movie.display_name())
         return movie
-
     except Exception as exc:
-        log.warning("Live scrape failed (%s) — falling back to demo data", exc)
-        return _demo_fallback(imdb_id, url)
+        log.warning("Live IMDb scrape failed (%s)", exc)
+        return None
 
-
-# ── Parsers ────────────────────────────────────────────────────────────────────
 
 def _parse_page(html: str, url: str) -> MovieData:
     soup  = BeautifulSoup(html, "html.parser")
@@ -67,7 +163,6 @@ def _parse_page(html: str, url: str) -> MovieData:
     if ld_tag:
         _apply_json_ld(json.loads(ld_tag.string), movie)
 
-    # Fill gaps with HTML fallback
     if not movie.year:
         movie.year = _html_year(soup)
 
@@ -87,7 +182,7 @@ def _apply_json_ld(data: dict, movie: MovieData) -> None:
     agg = data.get("aggregateRating", {})
     movie.rating = str(agg.get("ratingValue", "N/A"))
     count = agg.get("ratingCount", 0)
-    movie.votes  = f"{count:,}" if isinstance(count, int) else str(count)
+    movie.votes = f"{count:,}" if isinstance(count, int) else str(count)
 
     dirs = data.get("director", [])
     if isinstance(dirs, list) and dirs:
