@@ -4,6 +4,8 @@ AI-powered pipeline that converts any IMDb movie page into a ready-to-upload ~2-
 
 ![Workflow](docs/workflow.png)
 
+> **Demo** — [▶ Watch sample output](examples/shawshank_demo_compressed.mp4) *(The Shawshank Redemption, generated fully automatically)*
+
 ---
 
 ## Pipeline
@@ -113,6 +115,7 @@ imdb_pipeline/
 
 __main__.py             CLI  (python -m imdb_pipeline …)
 tests/                  32 pytest tests
+examples/               Sample generated video
 docs/                   Architecture assets
 pyproject.toml          Build config + dependencies
 ```
